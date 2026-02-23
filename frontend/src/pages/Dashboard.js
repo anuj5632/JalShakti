@@ -13,6 +13,8 @@ import { useAuth } from '../context/AuthContext';
 import { dashboardAPI, alertsAPI } from '../services/api';
 import axios from 'axios';
 import alarmSound, { checkAndPlayAlarm } from '../utils/alarmSound';
+import Chatbot from '../components/Chatbot';
+import ComplaintModal from '../components/ComplaintModal';
 import './Dashboard.css';
 
 // Realistic sensor simulation - gradual changes like real sensors
@@ -264,6 +266,8 @@ const Dashboard = () => {
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(localStorage.getItem('emailAlertsEnabled') !== 'false');
   const [emailSending, setEmailSending] = useState(false);
   const [lastEmailSent, setLastEmailSent] = useState(null);
+  const [chatbotOpen, setChatbotOpen] = useState(false);
+  const [complaintModalOpen, setComplaintModalOpen] = useState(false);
   const lastAlarmTime = useRef(0);
   const lastEmailTime = useRef(0);
 
@@ -1017,6 +1021,46 @@ const Dashboard = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Floating Action Buttons */}
+      <div className="floating-actions">
+        {/* File Complaint Button - Shows when quality is low */}
+        {qualityScore < 70 && (
+          <button 
+            className="floating-btn complaint-btn"
+            onClick={() => setComplaintModalOpen(true)}
+            title="File Government Complaint"
+          >
+            <span className="btn-icon">📋</span>
+            <span className="btn-text">File Complaint</span>
+          </button>
+        )}
+
+        {/* Chatbot Toggle Button */}
+        <button 
+          className={`floating-btn chatbot-btn ${chatbotOpen ? 'active' : ''}`}
+          onClick={() => setChatbotOpen(!chatbotOpen)}
+          title="Chat with JalMitra"
+        >
+          {chatbotOpen ? '✕' : '💬'}
+        </button>
+      </div>
+
+      {/* Chatbot Component */}
+      <Chatbot 
+        sensorData={data}
+        isOpen={chatbotOpen}
+        onClose={() => setChatbotOpen(false)}
+      />
+
+      {/* Complaint Modal */}
+      <ComplaintModal
+        isOpen={complaintModalOpen}
+        onClose={() => setComplaintModalOpen(false)}
+        sensorData={data}
+        qualityScore={qualityScore}
+        userEmail={userEmail}
+      />
     </div>
   );
 };

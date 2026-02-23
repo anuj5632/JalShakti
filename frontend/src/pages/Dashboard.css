@@ -941,3 +941,96 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================== Floating Action Buttons ==================== */
+.floating-actions {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  z-index: 998;
+}
+
+.floating-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 50px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.floating-btn:hover {
+  transform: translateY(-3px) scale(1.02);
+}
+
+/* Complaint Button */
+.floating-btn.complaint-btn {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  animation: pulseAttention 2s infinite;
+}
+
+@keyframes pulseAttention {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 30px rgba(239, 68, 68, 0.7), 0 0 0 8px rgba(239, 68, 68, 0.1);
+  }
+}
+
+.floating-btn.complaint-btn:hover {
+  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.5);
+}
+
+.floating-btn.complaint-btn .btn-icon {
+  font-size: 20px;
+}
+
+/* Chatbot Button */
+.floating-btn.chatbot-btn {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+  color: white;
+  font-size: 26px;
+  justify-content: center;
+}
+
+.floating-btn.chatbot-btn:hover {
+  box-shadow: 0 8px 30px rgba(14, 165, 233, 0.5);
+}
+
+.floating-btn.chatbot-btn.active {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .floating-actions {
+    bottom: 16px;
+    right: 16px;
+  }
+  
+  .floating-btn.complaint-btn {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+  
+  .floating-btn.chatbot-btn {
+    width: 54px;
+    height: 54px;
+    font-size: 22px;
+  }
+}

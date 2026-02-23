@@ -651,6 +651,226 @@ async def send_alert_sms(
         return {"error": "SMS service not available"}
 
 
+# ==================== Email Alerts ====================
+
+@app.post("/api/v1/test-email", response_model=Dict, tags=["Email"])
+async def test_email(
+    recipient: str
+):
+    """Test email sending - sends a test alert email"""
+    try:
+        from email_service import email_service
+        
+        result = email_service.send_test_email(recipient)
+        
+        return {
+            "success": result,
+            "message": "Test email sent successfully" if result else "Failed to send test email",
+            "recipient": recipient
+        }
+        
+    except ImportError as e:
+        return {"error": f"Email service not available: {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/email-status", response_model=Dict, tags=["Email"])
+async def get_email_status():
+    """Get email service configuration status"""
+    try:
+        from email_service import email_service
+        
+        return {
+            "configured": True,
+            "smtp_server": email_service.smtp_server,
+            "sender_email": email_service.sender_email,
+            "app_password_set": bool(email_service.app_password)
+        }
+    except ImportError:
+        return {"configured": False, "error": "Email service not imported"}
+
+
+@app.post("/api/v1/send-alert-email", response_model=Dict, tags=["Email"])
+async def send_alert_email(
+    recipients: str = Query(..., description="Comma-separated email addresses"),
+    alert_type: str = Query("warning"),
+    location: str = Query("Main Water Tank"),
+    ph: float = Query(7.0),
+    tds: float = Query(250.0),
+    turbidity: float = Query(2.5),
+    temperature: float = Query(26.0),
+    water_level: float = Query(75.0),
+    flow_rate: float = Query(5.0),
+    quality_score: float = Query(75.0)
+):
+    """
+    Send water quality alert email with full sensor details
+    
+    - alert_type: 'critical', 'warning', or 'info'
+    - recipients: Comma-separated email addresses
+    - All sensor readings for detailed report
+    """
+    try:
+        from email_service import send_water_quality_alert
+        
+        # Convert comma-separated string to list
+        recipient_list = [email.strip() for email in recipients.split(',') if email.strip()]
+        
+        sensor_data = {
+            'ph': ph,
+            'tds': tds,
+            'turbidity': turbidity,
+            'temperature': temperature,
+            'waterLevel': water_level,
+            'flowRate': flow_rate
+        }
+        
+        result = send_water_quality_alert(
+            alert_type=alert_type,
+            sensor_data=sensor_data,
+            quality_score=quality_score,
+            recipients=recipient_list,
+            location=location
+        )
+        
+        return {
+            "success": result,
+            "message": f"Alert email sent to {len(recipient_list)} recipients" if result else "Failed to send email",
+            "alert_type": alert_type,
+            "quality_score": quality_score,
+            "recipients": recipient_list
+        }
+        
+    except ImportError as e:
+        return {"error": f"Email service not available: {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ==================== Government Complaint Endpoints ====================
+
+@app.post("/api/v1/file-complaint", response_model=Dict, tags=["Complaints"])
+async def file_government_complaint(
+    location: str = Query("Main Water Tank"),
+    quality_score: float = Query(...),
+    ph: float = Query(7.0),
+    tds: float = Query(250.0),
+    turbidity: float = Query(2.5),
+    temperature: float = Query(26.0),
+    water_level: float = Query(75.0),
+    flow_rate: float = Query(5.0),
+    language: str = Query("english"),
+    user_email: Optional[str] = Query(None)
+):
+    """
+    File an automatic government complaint about poor water quality
+    Supports English, Hindi, and Marathi
+    """
+    try:
+        from complaint_service import file_govt_complaint
+        
+        sensor_data = {
+            'ph': ph,
+            'tds': tds,
+            'turbidity': turbidity,
+            'temperature': temperature,
+            'waterLevel': water_level,
+            'flowRate': flow_rate
+        }
+        
+        result = file_govt_complaint(
+            sensor_data=sensor_data,
+            quality_score=quality_score,
+            location=location,
+            language=language,
+            user_email=user_email
+        )
+        
+        return result
+        
+    except ImportError as e:
+        return {"error": f"Complaint service not available: {str(e)}", "success": False}
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
+@app.get("/api/v1/complaint-status/{complaint_id}", response_model=Dict, tags=["Complaints"])
+async def get_complaint_status(complaint_id: str):
+    """Get status of a filed complaint by ID"""
+    try:
+        from complaint_service import complaint_service
+        
+        complaint = complaint_service.get_complaint_status(complaint_id)
+        if complaint:
+            return {"success": True, "complaint": complaint}
+        return {"success": False, "error": "Complaint not found"}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/v1/my-complaints", response_model=Dict, tags=["Complaints"])
+async def get_all_complaints():
+    """Get all filed complaints"""
+    try:
+        from complaint_service import complaint_service
+        
+        complaints = complaint_service.get_all_complaints()
+        return {"success": True, "complaints": complaints, "count": len(complaints)}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ==================== Chatbot Endpoints ====================
+
+@app.post("/api/v1/chatbot", response_model=Dict, tags=["Chatbot"])
+async def chatbot_message(
+    message: str = Query(..., description="User message"),
+    language: str = Query("english", description="Language: english, hindi, marathi"),
+    ph: Optional[float] = Query(None),
+    tds: Optional[float] = Query(None),
+    turbidity: Optional[float] = Query(None),
+    temperature: Optional[float] = Query(None)
+):
+    """
+    Send message to multilingual water quality chatbot
+    Supports English, Hindi, and Marathi
+    """
+    try:
+        from chatbot_service import get_chatbot_response
+        
+        sensor_data = None
+        if any([ph, tds, turbidity, temperature]):
+            sensor_data = {
+                'ph': ph or 7.0,
+                'tds': tds or 250,
+                'turbidity': turbidity or 2.5,
+                'temperature': temperature or 26
+            }
+        
+        response = get_chatbot_response(message, language, sensor_data)
+        return {"success": True, **response}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/v1/chatbot/quick-replies", response_model=Dict, tags=["Chatbot"])
+async def get_quick_replies(language: str = Query("english")):
+    """Get quick reply suggestions for the chatbot"""
+    try:
+        from chatbot_service import chatbot
+        
+        chatbot.set_language(language)
+        replies = chatbot.get_quick_replies()
+        return {"success": True, "quick_replies": replies, "language": language}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # ==================== Run Server ====================
 
 if __name__ == "__main__":
