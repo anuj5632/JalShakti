@@ -15,31 +15,142 @@ import axios from 'axios';
 import alarmSound, { checkAndPlayAlarm } from '../utils/alarmSound';
 import './Dashboard.css';
 
-// Mock data generator
-const generateMockData = () => {
+// Realistic sensor simulation - gradual changes like real sensors
+let currentSensorValues = {
+  ph: 7.2,
+  tds: 245,
+  turbidity: 2.1,
+  flowRate: 5.2,
+  waterLevel: 72,
+  temperature: 26.5
+};
+
+// Calculate quality score based on actual sensor readings (WHO standards)
+const calculateQualityScore = (ph, tds, turbidity) => {
+  // pH scoring (ideal: 6.5-8.5, optimal: 7.0-7.5)
+  let phScore = 100;
+  if (ph < 6.5 || ph > 8.5) phScore = 20;
+  else if (ph < 6.8 || ph > 8.2) phScore = 50;
+  else if (ph < 7.0 || ph > 7.5) phScore = 75;
+  else phScore = 100;
+
+  // TDS scoring (ideal: <300 ppm, acceptable: <500 ppm)
+  let tdsScore = 100;
+  if (tds > 500) tdsScore = 20;
+  else if (tds > 400) tdsScore = 50;
+  else if (tds > 300) tdsScore = 75;
+  else if (tds > 200) tdsScore = 90;
+  else tdsScore = 100;
+
+  // Turbidity scoring (ideal: <1 NTU, acceptable: <5 NTU)
+  let turbidityScore = 100;
+  if (turbidity > 5) turbidityScore = 20;
+  else if (turbidity > 4) turbidityScore = 50;
+  else if (turbidity > 3) turbidityScore = 70;
+  else if (turbidity > 2) turbidityScore = 85;
+  else if (turbidity > 1) turbidityScore = 95;
+  else turbidityScore = 100;
+
+  // Weighted average (turbidity most important for drinking water)
+  return Math.round(phScore * 0.3 + tdsScore * 0.3 + turbidityScore * 0.4);
+};
+
+// Get individual scores for display
+const getIndividualScores = (ph, tds, turbidity) => {
+  let phScore = 100;
+  if (ph < 6.5 || ph > 8.5) phScore = 20;
+  else if (ph < 6.8 || ph > 8.2) phScore = 50;
+  else if (ph < 7.0 || ph > 7.5) phScore = 75;
+  else phScore = 100;
+
+  let tdsScore = 100;
+  if (tds > 500) tdsScore = 20;
+  else if (tds > 400) tdsScore = 50;
+  else if (tds > 300) tdsScore = 75;
+  else if (tds > 200) tdsScore = 90;
+  else tdsScore = 100;
+
+  let turbidityScore = 100;
+  if (turbidity > 5) turbidityScore = 20;
+  else if (turbidity > 4) turbidityScore = 50;
+  else if (turbidity > 3) turbidityScore = 70;
+  else if (turbidity > 2) turbidityScore = 85;
+  else if (turbidity > 1) turbidityScore = 95;
+  else turbidityScore = 100;
+
+  return { phScore, tdsScore, turbidityScore };
+};
+
+// Simulate gradual sensor drift (like real sensors)
+const generateRealisticData = () => {
   const now = new Date();
+  
+  // Small random drift (-0.02 to +0.02 for pH, etc.)
+  currentSensorValues.ph += (Math.random() - 0.5) * 0.04;
+  currentSensorValues.tds += (Math.random() - 0.5) * 4;
+  currentSensorValues.turbidity += (Math.random() - 0.5) * 0.08;
+  currentSensorValues.flowRate += (Math.random() - 0.5) * 0.2;
+  currentSensorValues.waterLevel += (Math.random() - 0.5) * 0.5;
+  currentSensorValues.temperature += (Math.random() - 0.5) * 0.1;
+
+  // Keep values in realistic bounds
+  currentSensorValues.ph = Math.max(6.0, Math.min(9.0, currentSensorValues.ph));
+  currentSensorValues.tds = Math.max(100, Math.min(600, currentSensorValues.tds));
+  currentSensorValues.turbidity = Math.max(0.5, Math.min(6, currentSensorValues.turbidity));
+  currentSensorValues.flowRate = Math.max(2, Math.min(8, currentSensorValues.flowRate));
+  currentSensorValues.waterLevel = Math.max(30, Math.min(95, currentSensorValues.waterLevel));
+  currentSensorValues.temperature = Math.max(20, Math.min(32, currentSensorValues.temperature));
+
   return {
-    ph: 6.8 + Math.random() * 1.4,
-    tds: 180 + Math.random() * 140,
-    turbidity: 1.5 + Math.random() * 2.5,
-    flowRate: 3 + Math.random() * 4,
-    waterLevel: 45 + Math.random() * 40,
-    temperature: 24 + Math.random() * 4,
+    ph: parseFloat(currentSensorValues.ph.toFixed(2)),
+    tds: Math.round(currentSensorValues.tds),
+    turbidity: parseFloat(currentSensorValues.turbidity.toFixed(2)),
+    flowRate: parseFloat(currentSensorValues.flowRate.toFixed(1)),
+    waterLevel: parseFloat(currentSensorValues.waterLevel.toFixed(1)),
+    temperature: parseFloat(currentSensorValues.temperature.toFixed(1)),
     timestamp: now.toISOString()
   };
+};
+
+// Simulate contamination event (for demo - gradual degradation)
+let contaminationActive = false;
+let contaminationStartTime = null;
+
+const simulateContamination = () => {
+  // Gradually increase turbidity and TDS (contamination effect)
+  currentSensorValues.turbidity += 0.15;
+  currentSensorValues.tds += 8;
+  currentSensorValues.ph += (Math.random() - 0.5) * 0.1;
 };
 
 const generateHistory = (count = 24) => {
   const history = [];
   const now = new Date();
+  // Start with good values and simulate gradual changes
+  let histPh = 7.1;
+  let histTds = 230;
+  let histTurb = 1.8;
+  
   for (let i = count - 1; i >= 0; i--) {
     const time = new Date(now - i * 60 * 60 * 1000);
+    // Small gradual changes
+    histPh += (Math.random() - 0.5) * 0.1;
+    histTds += (Math.random() - 0.5) * 10;
+    histTurb += (Math.random() - 0.5) * 0.2;
+    
+    // Keep in bounds
+    histPh = Math.max(6.5, Math.min(8.0, histPh));
+    histTds = Math.max(180, Math.min(350, histTds));
+    histTurb = Math.max(1.0, Math.min(4.0, histTurb));
+    
+    const quality = calculateQualityScore(histPh, histTds, histTurb);
+    
     history.push({
       time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      ph: (6.8 + Math.random() * 1.4).toFixed(2),
-      tds: Math.round(180 + Math.random() * 140),
-      turbidity: (1.5 + Math.random() * 2.5).toFixed(2),
-      quality: Math.round(70 + Math.random() * 25)
+      ph: histPh.toFixed(2),
+      tds: Math.round(histTds),
+      turbidity: histTurb.toFixed(2),
+      quality: quality
     });
   }
   return history;
@@ -135,9 +246,12 @@ const QualityGauge = ({ score }) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const [data, setData] = useState(generateMockData());
+  const [data, setData] = useState(generateRealisticData());
   const [history, setHistory] = useState(generateHistory());
-  const [qualityScore, setQualityScore] = useState(82);
+  const [qualityScore, setQualityScore] = useState(() => {
+    const initial = generateRealisticData();
+    return calculateQualityScore(initial.ph, initial.tds, initial.turbidity);
+  });
   const [alerts, setAlerts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
@@ -145,7 +259,104 @@ const Dashboard = () => {
   const [loadingPredictions, setLoadingPredictions] = useState(false);
   const [alarmEnabled, setAlarmEnabled] = useState(true);
   const [currentAlarmStatus, setCurrentAlarmStatus] = useState('normal');
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [demoMode, setDemoMode] = useState(null); // 'normal', 'warning', 'critical'
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(localStorage.getItem('emailAlertsEnabled') !== 'false');
+  const [emailSending, setEmailSending] = useState(false);
+  const [lastEmailSent, setLastEmailSent] = useState(null);
   const lastAlarmTime = useRef(0);
+  const lastEmailTime = useRef(0);
+
+  // Get user's registered email
+  const userEmail = user?.email;
+
+  // Function to send email alert to registered user email
+  const sendEmailAlert = async (alertType, sensorData, score) => {
+    if (!userEmail) {
+      console.log('No user email found - not logged in');
+      return;
+    }
+    
+    if (!emailAlertsEnabled) {
+      console.log('Email alerts disabled by user');
+      return;
+    }
+    
+    // Don't send more than one email per 30 seconds (for demo)
+    const now = Date.now();
+    if (now - lastEmailTime.current < 30000) {
+      console.log('Email cooldown active, skipping...');
+      return;
+    }
+    
+    setEmailSending(true);
+    console.log('Sending email to registered user:', userEmail);
+    
+    try {
+      const response = await axios.post('http://localhost:8000/api/v1/send-alert-email', null, {
+        params: {
+          recipients: userEmail,
+          alert_type: alertType,
+          location: 'Main Water Tank',
+          ph: sensorData.ph,
+          tds: sensorData.tds,
+          turbidity: sensorData.turbidity,
+          temperature: sensorData.temperature,
+          water_level: sensorData.waterLevel,
+          flow_rate: sensorData.flowRate,
+          quality_score: score
+        }
+      });
+      
+      console.log('Email API response:', response.data);
+      
+      if (response.data.success) {
+        lastEmailTime.current = now;
+        setLastEmailSent(new Date());
+        console.log('Alert email sent successfully to:', userEmail);
+      } else {
+        console.error('Email send failed:', response.data);
+      }
+    } catch (error) {
+      console.error('Failed to send email alert:', error);
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // Toggle email alerts
+  const toggleEmailAlerts = () => {
+    const newState = !emailAlertsEnabled;
+    setEmailAlertsEnabled(newState);
+    localStorage.setItem('emailAlertsEnabled', newState.toString());
+  };
+
+  // Manual test email function
+  const sendTestEmail = async () => {
+    if (!userEmail) {
+      alert('Please login with Google to receive email alerts!');
+      return;
+    }
+    
+    setEmailSending(true);
+    try {
+      const response = await axios.post('http://localhost:8000/api/v1/test-email', null, {
+        params: { recipient: userEmail }
+      });
+      
+      if (response.data.success) {
+        setLastEmailSent(new Date());
+        alert('Test email sent to ' + userEmail + '! Check your inbox.');
+      } else {
+        alert('Failed to send email: ' + (response.data.message || response.data.error));
+      }
+    } catch (error) {
+      console.error('Test email failed:', error);
+      alert('Failed to send test email. Check console for details.');
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   // Check for critical values and play alarm
   useEffect(() => {
@@ -155,13 +366,33 @@ const Dashboard = () => {
     const now = Date.now();
     if (now - lastAlarmTime.current < 30000) return;
 
+    // Trigger alarm if quality score drops below 70%
+    if (qualityScore < 70) {
+      if (qualityScore < 50) {
+        // Critical - below 50%
+        alarmSound.playCriticalAlarm(4000);
+        setCurrentAlarmStatus('critical');
+        // Send critical email alert
+        sendEmailAlert('critical', data, qualityScore);
+      } else {
+        // Warning - below 70%
+        alarmSound.playWarningAlarm(2000);
+        setCurrentAlarmStatus('warning');
+        // Send warning email alert
+        sendEmailAlert('warning', data, qualityScore);
+      }
+      lastAlarmTime.current = now;
+    } else {
+      setCurrentAlarmStatus('normal');
+    }
+
+    // Also check individual sensor values
     const status = checkAndPlayAlarm(data);
-    setCurrentAlarmStatus(status);
-    
-    if (status !== 'normal') {
+    if (status !== 'normal' && now - lastAlarmTime.current >= 30000) {
+      setCurrentAlarmStatus(status);
       lastAlarmTime.current = now;
     }
-  }, [data, alarmEnabled]);
+  }, [data, qualityScore, alarmEnabled]);
 
   const toggleAlarm = () => {
     setAlarmEnabled(!alarmEnabled);
@@ -169,6 +400,61 @@ const Dashboard = () => {
       alarmSound.stop();
     }
   };
+
+  // Demo scenarios for presentation
+  const triggerDemoScenario = (scenario) => {
+    setDemoMode(scenario);
+    switch(scenario) {
+      case 'normal':
+        // Good water quality
+        currentSensorValues.ph = 7.2;
+        currentSensorValues.tds = 220;
+        currentSensorValues.turbidity = 1.5;
+        contaminationActive = false;
+        break;
+      case 'warning':
+        // Medium contamination - triggers warning alarm
+        currentSensorValues.ph = 7.8;
+        currentSensorValues.tds = 380;
+        currentSensorValues.turbidity = 3.8;
+        contaminationActive = false;
+        break;
+      case 'critical':
+        // Severe contamination - triggers critical alarm
+        currentSensorValues.ph = 8.6;
+        currentSensorValues.tds = 520;
+        currentSensorValues.turbidity = 5.5;
+        contaminationActive = false;
+        break;
+      case 'gradual':
+        // Start gradual contamination
+        currentSensorValues.ph = 7.2;
+        currentSensorValues.tds = 245;
+        currentSensorValues.turbidity = 2.1;
+        contaminationActive = true;
+        contaminationStartTime = Date.now();
+        break;
+      default:
+        break;
+    }
+    // Force immediate update
+    const newData = generateRealisticData();
+    setData(newData);
+    setQualityScore(calculateQualityScore(newData.ph, newData.tds, newData.turbidity));
+    setLastUpdate(new Date());
+  };
+
+  // Keyboard shortcuts for demo
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.key === '1') triggerDemoScenario('normal');
+      if (e.key === '2') triggerDemoScenario('warning');
+      if (e.key === '3') triggerDemoScenario('critical');
+      if (e.key === '4') triggerDemoScenario('gradual');
+    };
+    window.addEventListener('keypress', handleKeyPress);
+    return () => window.removeEventListener('keypress', handleKeyPress);
+  }, []);
 
   // Fetch ML predictions
   const fetchPredictions = useCallback(async () => {
@@ -222,17 +508,42 @@ const Dashboard = () => {
     fetchPredictions();
   }, [fetchDashboardData, fetchPredictions]);
 
-  // Simulate real-time updates
+  // Simulate real-time updates with realistic sensor behavior
   useEffect(() => {
     const interval = setInterval(() => {
       if (!apiConnected) {
-        const newData = generateMockData();
+        // If contamination is active, simulate degradation
+        if (contaminationActive) {
+          simulateContamination();
+          // Auto-stop after 2 minutes
+          if (Date.now() - contaminationStartTime > 120000) {
+            contaminationActive = false;
+          }
+        }
+        
+        const newData = generateRealisticData();
         setData(newData);
-        setQualityScore(70 + Math.random() * 25);
+        setLastUpdate(new Date());
+        
+        // Calculate quality based on actual sensor values
+        const calculatedQuality = calculateQualityScore(newData.ph, newData.tds, newData.turbidity);
+        setQualityScore(calculatedQuality);
+        
+        // Update history with new data point
+        setHistory(prev => {
+          const newHistory = [...prev.slice(1), {
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            ph: newData.ph.toFixed(2),
+            tds: newData.tds,
+            turbidity: newData.turbidity.toFixed(2),
+            quality: calculatedQuality
+          }];
+          return newHistory;
+        });
       } else {
         fetchDashboardData();
       }
-    }, 5000);
+    }, 3000); // Update every 3 seconds for smoother real-time feel
 
     return () => clearInterval(interval);
   }, [apiConnected, fetchDashboardData]);
@@ -242,9 +553,10 @@ const Dashboard = () => {
     try {
       await fetchDashboardData();
       if (!apiConnected) {
-        setData(generateMockData());
+        const newData = generateRealisticData();
+        setData(newData);
         setHistory(generateHistory());
-        setQualityScore(70 + Math.random() * 25);
+        setQualityScore(calculateQualityScore(newData.ph, newData.tds, newData.turbidity));
       }
     } finally {
       setRefreshing(false);
@@ -293,9 +605,24 @@ const Dashboard = () => {
           animate={{ opacity: 1, y: 0 }}
         >
           <FiBell className="alert-bell" />
-          <span>CRITICAL: Water quality parameters exceeded safe limits!</span>
+          <span>CRITICAL: Water quality dropped below 50%! Immediate attention required!</span>
           <button onClick={() => setCurrentAlarmStatus('acknowledged')} className="dismiss-btn">
             Acknowledge
+          </button>
+        </motion.div>
+      )}
+
+      {/* Warning Alert Banner */}
+      {currentAlarmStatus === 'warning' && (
+        <motion.div 
+          className="warning-alert-banner"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <FiBell className="alert-bell" />
+          <span>WARNING: Water quality below 70% - Check your water sources</span>
+          <button onClick={() => setCurrentAlarmStatus('acknowledged')} className="dismiss-btn">
+            Dismiss
           </button>
         </motion.div>
       )}
@@ -307,6 +634,10 @@ const Dashboard = () => {
           <p>Welcome back, {user?.name?.split(' ')[0] || 'User'}! Here's your water quality overview.</p>
         </div>
         <div className="header-actions">
+          <div className="connection-status">
+            <span className={`status-indicator ${apiConnected ? 'connected' : 'simulation'}`}></span>
+            <span className="status-text">{apiConnected ? 'Live Sensors' : 'Simulation Mode'}</span>
+          </div>
           <button 
             className={`btn btn-icon alarm-toggle ${alarmEnabled ? 'enabled' : 'disabled'}`}
             onClick={toggleAlarm}
@@ -372,11 +703,154 @@ const Dashboard = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <h3>Water Quality Score</h3>
+          <div className="quality-header">
+            <h3>Water Quality Score</h3>
+            <div className="last-update">
+              <span className="update-label">Last Check:</span>
+              <span className="update-time">{lastUpdate.toLocaleString('en-IN', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric',
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              })}</span>
+            </div>
+          </div>
           <QualityGauge score={qualityScore} />
-          <p className="quality-description">
-            Your water quality is within safe drinking standards
-          </p>
+          
+          {/* Quality Score Breakdown */}
+          <div className="quality-breakdown">
+            <h4>Score Breakdown (WHO Standards)</h4>
+            <div className="breakdown-items">
+              <div className="breakdown-item">
+                <div className="breakdown-label">
+                  <span>pH Level</span>
+                  <span className="breakdown-value">{data.ph?.toFixed(2)}</span>
+                </div>
+                <div className="breakdown-bar">
+                  <div 
+                    className="breakdown-fill" 
+                    style={{ 
+                      width: `${getIndividualScores(data.ph, data.tds, data.turbidity).phScore}%`,
+                      background: getIndividualScores(data.ph, data.tds, data.turbidity).phScore >= 75 ? 'var(--success)' : getIndividualScores(data.ph, data.tds, data.turbidity).phScore >= 50 ? 'var(--warning)' : 'var(--danger)'
+                    }}
+                  ></div>
+                </div>
+                <span className="breakdown-score">{getIndividualScores(data.ph, data.tds, data.turbidity).phScore}%</span>
+              </div>
+              <div className="breakdown-item">
+                <div className="breakdown-label">
+                  <span>TDS</span>
+                  <span className="breakdown-value">{data.tds} ppm</span>
+                </div>
+                <div className="breakdown-bar">
+                  <div 
+                    className="breakdown-fill" 
+                    style={{ 
+                      width: `${getIndividualScores(data.ph, data.tds, data.turbidity).tdsScore}%`,
+                      background: getIndividualScores(data.ph, data.tds, data.turbidity).tdsScore >= 75 ? 'var(--success)' : getIndividualScores(data.ph, data.tds, data.turbidity).tdsScore >= 50 ? 'var(--warning)' : 'var(--danger)'
+                    }}
+                  ></div>
+                </div>
+                <span className="breakdown-score">{getIndividualScores(data.ph, data.tds, data.turbidity).tdsScore}%</span>
+              </div>
+              <div className="breakdown-item">
+                <div className="breakdown-label">
+                  <span>Turbidity</span>
+                  <span className="breakdown-value">{data.turbidity?.toFixed(2)} NTU</span>
+                </div>
+                <div className="breakdown-bar">
+                  <div 
+                    className="breakdown-fill" 
+                    style={{ 
+                      width: `${getIndividualScores(data.ph, data.tds, data.turbidity).turbidityScore}%`,
+                      background: getIndividualScores(data.ph, data.tds, data.turbidity).turbidityScore >= 75 ? 'var(--success)' : getIndividualScores(data.ph, data.tds, data.turbidity).turbidityScore >= 50 ? 'var(--warning)' : 'var(--danger)'
+                    }}
+                  ></div>
+                </div>
+                <span className="breakdown-score">{getIndividualScores(data.ph, data.tds, data.turbidity).turbidityScore}%</span>
+              </div>
+            </div>
+            <div className="weight-info">
+              <small>Weights: pH (30%) + TDS (30%) + Turbidity (40%) = Overall Score</small>
+            </div>
+          </div>
+
+          {/* Email Alert Settings */}
+          <div className="email-alert-settings">
+            <h4>📧 Email Alerts</h4>
+            {userEmail ? (
+              <>
+                <div className="registered-email">
+                  <span className="email-label">Registered Email:</span>
+                  <span className="user-email">{userEmail}</span>
+                </div>
+                <div className="email-controls">
+                  <label className="toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={emailAlertsEnabled}
+                      onChange={toggleEmailAlerts}
+                    />
+                    <span>Enable email alerts</span>
+                  </label>
+                  <button 
+                    className="test-email-btn"
+                    onClick={sendTestEmail}
+                    disabled={emailSending}
+                  >
+                    {emailSending ? 'Sending...' : 'Test Email'}
+                  </button>
+                </div>
+                {lastEmailSent && (
+                  <span className="email-status sent">
+                    Last sent: {lastEmailSent.toLocaleTimeString()}
+                  </span>
+                )}
+                <p className="email-info">
+                  {emailAlertsEnabled 
+                    ? '✅ Alerts enabled - emails sent when quality < 70%' 
+                    : '⏸️ Email alerts paused'}
+                </p>
+              </>
+            ) : (
+              <p className="email-info login-required">
+                🔐 Please login with Google to receive email alerts
+              </p>
+            )}
+          </div>
+
+          {/* Demo Scenarios for Presentation */}
+          <div className="demo-scenarios">
+            <h4>Demo Scenarios</h4>
+            <div className="scenario-buttons">
+              <button 
+                className={`scenario-btn normal ${demoMode === 'normal' ? 'active' : ''}`}
+                onClick={() => triggerDemoScenario('normal')}
+              >
+                Normal (1)
+              </button>
+              <button 
+                className={`scenario-btn warning ${demoMode === 'warning' ? 'active' : ''}`}
+                onClick={() => triggerDemoScenario('warning')}
+              >
+                Warning (2)
+              </button>
+              <button 
+                className={`scenario-btn critical ${demoMode === 'critical' ? 'active' : ''}`}
+                onClick={() => triggerDemoScenario('critical')}
+              >
+                Critical (3)
+              </button>
+              <button 
+                className={`scenario-btn gradual ${demoMode === 'gradual' ? 'active' : ''}`}
+                onClick={() => triggerDemoScenario('gradual')}
+              >
+                Gradual (4)
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* Chart */}
