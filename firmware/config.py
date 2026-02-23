@@ -4,7 +4,15 @@
 WIFI_SSID = "Wokwi-GUEST"
 WIFI_PASSWORD = ""
 
-# ── MQTT Broker Settings ──
+# ── Backend API Settings ──
+# Change this to your backend URL
+API_BASE_URL = "http://localhost:8000"  # Local development
+# API_BASE_URL = "https://your-api.railway.app"  # Production
+API_ENDPOINT = "/api/v1/sensor-data"
+DEVICE_ID = "esp32-tank-main"
+API_KEY = ""  # Optional: for authentication
+
+# ── MQTT Broker Settings (backup) ──
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
 MQTT_CLIENT_ID = "esp32-water-monitor"

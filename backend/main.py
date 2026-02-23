@@ -429,6 +429,228 @@ async def get_water_standards():
     return WATER_QUALITY_STANDARDS
 
 
+# ==================== Device Data Ingestion ====================
+
+@app.post("/api/v1/sensor-data", response_model=Dict, tags=["Device Data"])
+async def receive_sensor_data(
+    reading: dict
+):
+    """
+    Receive sensor data from ESP32/IoT devices
+    No authentication required - uses device_id for identification
+    """
+    try:
+        device_id = reading.get('device_id', 'unknown')
+        
+        # Analyze the reading
+        analysis = ml_engine.analyze_reading(reading)
+        
+        # Store in memory buffer for real-time dashboard
+        # In production, would store in Firebase/Redis
+        if not hasattr(receive_sensor_data, 'data_buffer'):
+            receive_sensor_data.data_buffer = {}
+        
+        receive_sensor_data.data_buffer[device_id] = {
+            **reading,
+            'analysis': analysis,
+            'received_at': datetime.utcnow().isoformat()
+        }
+        
+        # Keep last 100 readings per device
+        if not hasattr(receive_sensor_data, 'history'):
+            receive_sensor_data.history = {}
+        
+        if device_id not in receive_sensor_data.history:
+            receive_sensor_data.history[device_id] = []
+        
+        receive_sensor_data.history[device_id].append({
+            **reading,
+            'analysis': analysis,
+            'received_at': datetime.utcnow().isoformat()
+        })
+        
+        # Keep only last 100
+        receive_sensor_data.history[device_id] = receive_sensor_data.history[device_id][-100:]
+        
+        # Check for alerts and send SMS if critical
+        if analysis.get('is_anomaly') and reading.get('severity') == 'critical':
+            # Import SMS service
+            try:
+                from sms_service import sms_service
+                # In production, get phone from user profile
+                # For demo, log the alert
+                print(f"🚨 CRITICAL ALERT from {device_id}: {reading.get('alerts', [])}")
+            except ImportError:
+                pass
+        
+        return {
+            "status": "success",
+            "device_id": device_id,
+            "analysis": analysis,
+            "message": "Data received successfully"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.get("/api/v1/live-data", response_model=Dict, tags=["Device Data"])
+async def get_live_data(device_id: Optional[str] = None):
+    """Get live data from IoT devices"""
+    if not hasattr(receive_sensor_data, 'data_buffer'):
+        return {"devices": {}, "message": "No data yet"}
+    
+    if device_id:
+        data = receive_sensor_data.data_buffer.get(device_id)
+        return {"device": data} if data else {"error": "Device not found"}
+    
+    return {"devices": receive_sensor_data.data_buffer}
+
+
+@app.get("/api/v1/device-history/{device_id}", response_model=Dict, tags=["Device Data"])
+async def get_device_history(device_id: str, limit: int = 50):
+    """Get historical data for a device"""
+    if not hasattr(receive_sensor_data, 'history'):
+        return {"readings": [], "count": 0}
+    
+    history = receive_sensor_data.history.get(device_id, [])
+    return {
+        "device_id": device_id,
+        "readings": history[-limit:],
+        "count": len(history[-limit:])
+    }
+
+
+# ==================== ML Predictions ====================
+
+@app.post("/api/v1/predict", response_model=Dict, tags=["ML Predictions"])
+async def predict_future_values(
+    device_id: str,
+    steps: int = Query(5, ge=1, le=20)
+):
+    """
+    Predict future water quality values using ML model
+    Uses scikit-learn based predictor
+    """
+    try:
+        # Import predictor
+        import sys
+        import os
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
+        sys.path.insert(0, model_path)
+        
+        from predictor import WaterQualityPredictor
+        
+        # Check if model exists
+        model_file = os.path.join(model_path, 'water_quality_model.joblib')
+        
+        predictor = WaterQualityPredictor()
+        
+        if os.path.exists(model_file):
+            predictor.load_model(model_file)
+        else:
+            # Train on synthetic data if no saved model
+            predictor.train(verbose=False)
+        
+        # Get historical data for this device
+        if not hasattr(receive_sensor_data, 'history') or device_id not in receive_sensor_data.history:
+            # Generate predictions from synthetic baseline
+            predictions = predictor.predict_all(
+                ph_history=[7.0, 7.1, 7.2, 7.1, 7.0, 6.9, 7.0, 7.1, 7.2, 7.1],
+                turbidity_history=[5, 5.2, 5.1, 5.3, 5.0, 4.9, 5.1, 5.2, 5.0, 5.1],
+                tds_history=[250, 252, 251, 253, 250, 248, 251, 252, 250, 251],
+                steps=steps
+            )
+        else:
+            history = receive_sensor_data.history[device_id]
+            
+            # Need at least window_size readings
+            if len(history) < predictor.window_size:
+                return {
+                    "error": f"Need at least {predictor.window_size} readings for prediction",
+                    "current_count": len(history)
+                }
+            
+            predictions = predictor.predict_all(
+                ph_history=[r.get('ph', 7.0) for r in history],
+                turbidity_history=[r.get('turbidity', 5) for r in history],
+                tds_history=[r.get('tds', 250) for r in history],
+                steps=steps
+            )
+        
+        return {
+            "device_id": device_id,
+            "predictions": predictions,
+            "model_type": "GradientBoosting + RandomForest",
+            "prediction_intervals": [f"+{(i+1)*5} min" for i in range(steps)]
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "message": "Prediction failed"
+        }
+
+
+# ==================== SMS Alerts ====================
+
+@app.post("/api/v1/test-sms", response_model=Dict, tags=["SMS"])
+async def test_sms(
+    phone: str,
+    message: str = "Test alert from AquaGuard"
+):
+    """Test SMS sending (for development)"""
+    try:
+        from sms_service import sms_service
+        
+        result = await sms_service.send_sms(phone, message)
+        return result
+        
+    except ImportError:
+        return {"error": "SMS service not available"}
+
+
+@app.get("/api/v1/sms-status", response_model=Dict, tags=["SMS"])
+async def get_sms_status():
+    """Get SMS service status"""
+    try:
+        from sms_service import sms_service
+        return sms_service.get_status()
+    except ImportError:
+        return {"configured": False, "error": "SMS service not imported"}
+
+
+@app.post("/api/v1/send-alert-sms", response_model=Dict, tags=["SMS"])
+async def send_alert_sms(
+    phone_numbers: List[str],
+    alert_type: str = "warning",
+    source_name: str = "Main Tank",
+    ph: float = 7.0,
+    turbidity: float = 5.0,
+    tds: float = 250,
+    anomalies: List[str] = []
+):
+    """Send water quality alert SMS to specified numbers"""
+    try:
+        from sms_service import sms_service
+        
+        values = {"ph": ph, "turbidity": turbidity, "tds": tds}
+        results = await sms_service.send_alert(
+            phone_numbers, alert_type, source_name, values, anomalies
+        )
+        
+        return {
+            "status": "sent",
+            "results": results
+        }
+        
+    except ImportError:
+        return {"error": "SMS service not available"}
+
+
 # ==================== Run Server ====================
 
 if __name__ == "__main__":
