@@ -1,0 +1,395 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { 
+  FiDroplet, FiActivity, FiThermometer, FiAlertCircle, 
+  FiTrendingUp, FiTrendingDown, FiRefreshCw 
+} from 'react-icons/fi';
+import { 
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, 
+  CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+import { useAuth } from '../context/AuthContext';
+import { dashboardAPI, alertsAPI } from '../services/api';
+import './Dashboard.css';
+
+// Mock data generator
+const generateMockData = () => {
+  const now = new Date();
+  return {
+    ph: 6.8 + Math.random() * 1.4,
+    tds: 180 + Math.random() * 140,
+    turbidity: 1.5 + Math.random() * 2.5,
+    flowRate: 3 + Math.random() * 4,
+    waterLevel: 45 + Math.random() * 40,
+    temperature: 24 + Math.random() * 4,
+    timestamp: now.toISOString()
+  };
+};
+
+const generateHistory = (count = 24) => {
+  const history = [];
+  const now = new Date();
+  for (let i = count - 1; i >= 0; i--) {
+    const time = new Date(now - i * 60 * 60 * 1000);
+    history.push({
+      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      ph: (6.8 + Math.random() * 1.4).toFixed(2),
+      tds: Math.round(180 + Math.random() * 140),
+      turbidity: (1.5 + Math.random() * 2.5).toFixed(2),
+      quality: Math.round(70 + Math.random() * 25)
+    });
+  }
+  return history;
+};
+
+const MetricCard = ({ title, value, unit, icon: Icon, trend, status, color }) => {
+  const getStatusColor = () => {
+    switch (status) {
+      case 'excellent': return 'var(--success)';
+      case 'good': return '#22d3ee';
+      case 'fair': return 'var(--warning)';
+      case 'poor': return '#f97316';
+      case 'critical': return 'var(--danger)';
+      default: return 'var(--accent-primary)';
+    }
+  };
+
+  return (
+    <motion.div 
+      className="metric-card"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+    >
+      <div className="metric-header">
+        <div className="metric-icon" style={{ background: `${color}20`, color }}>
+          <Icon size={20} />
+        </div>
+        <span className={`metric-trend ${trend > 0 ? 'up' : 'down'}`}>
+          {trend > 0 ? <FiTrendingUp /> : <FiTrendingDown />}
+          {Math.abs(trend).toFixed(1)}%
+        </span>
+      </div>
+      <div className="metric-value">
+        {typeof value === 'number' ? value.toFixed(1) : value}
+        <span className="metric-unit">{unit}</span>
+      </div>
+      <div className="metric-title">{title}</div>
+      <div className="metric-status">
+        <span className="status-dot" style={{ background: getStatusColor() }}></span>
+        <span style={{ color: getStatusColor(), textTransform: 'capitalize' }}>{status}</span>
+      </div>
+    </motion.div>
+  );
+};
+
+const QualityGauge = ({ score }) => {
+  const getCategory = () => {
+    if (score >= 90) return { label: 'Excellent', color: 'var(--success)' };
+    if (score >= 75) return { label: 'Good', color: '#22d3ee' };
+    if (score >= 50) return { label: 'Fair', color: 'var(--warning)' };
+    if (score >= 25) return { label: 'Poor', color: '#f97316' };
+    return { label: 'Critical', color: 'var(--danger)' };
+  };
+
+  const { label, color } = getCategory();
+  const circumference = 2 * Math.PI * 80;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <div className="quality-gauge">
+      <svg viewBox="0 0 200 200" className="gauge-svg">
+        <circle
+          cx="100"
+          cy="100"
+          r="80"
+          fill="none"
+          stroke="var(--bg-tertiary)"
+          strokeWidth="12"
+        />
+        <motion.circle
+          cx="100"
+          cy="100"
+          r="80"
+          fill="none"
+          stroke={color}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          transform="rotate(-90 100 100)"
+        />
+      </svg>
+      <div className="gauge-content">
+        <div className="gauge-score" style={{ color }}>{Math.round(score)}</div>
+        <div className="gauge-label">{label}</div>
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = () => {
+  const { user } = useAuth();
+  const [data, setData] = useState(generateMockData());
+  const [history, setHistory] = useState(generateHistory());
+  const [qualityScore, setQualityScore] = useState(82);
+  const [alerts, setAlerts] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [apiConnected, setApiConnected] = useState(false);
+
+  // Fetch data from API or use mock
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const response = await dashboardAPI.getSummary();
+      if (response.data) {
+        setApiConnected(true);
+        const summary = response.data;
+        if (summary.latest_reading) {
+          setData(summary.latest_reading);
+        }
+        if (summary.overall_quality) {
+          setQualityScore(summary.overall_quality);
+        }
+        // Fetch alerts
+        const alertsResponse = await alertsAPI.getAll({ limit: 5 });
+        if (alertsResponse.data?.alerts) {
+          setAlerts(alertsResponse.data.alerts);
+        }
+      }
+    } catch (error) {
+      console.warn('API unavailable, using mock data');
+      setApiConnected(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!apiConnected) {
+        const newData = generateMockData();
+        setData(newData);
+        setQualityScore(70 + Math.random() * 25);
+      } else {
+        fetchDashboardData();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [apiConnected, fetchDashboardData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchDashboardData();
+      if (!apiConnected) {
+        setData(generateMockData());
+        setHistory(generateHistory());
+        setQualityScore(70 + Math.random() * 25);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const getStatus = (metric, value) => {
+    switch (metric) {
+      case 'ph':
+        if (value >= 6.5 && value <= 7.5) return 'excellent';
+        if (value >= 6.0 && value <= 8.0) return 'good';
+        if (value >= 5.5 && value <= 8.5) return 'fair';
+        return 'poor';
+      case 'tds':
+        if (value <= 250) return 'excellent';
+        if (value <= 350) return 'good';
+        if (value <= 500) return 'fair';
+        return 'poor';
+      case 'turbidity':
+        if (value <= 2) return 'excellent';
+        if (value <= 4) return 'good';
+        if (value <= 5) return 'fair';
+        return 'poor';
+      default:
+        return 'good';
+    }
+  };
+
+  const mockAlerts = alerts.length > 0 ? alerts.map(a => ({
+    id: a.id || a.alert_id,
+    type: a.severity || 'warning',
+    message: a.message,
+    time: a.created_at ? new Date(a.created_at).toLocaleString() : 'Just now'
+  })) : [
+    { id: 1, type: 'warning', message: 'TDS levels slightly elevated in Kitchen Tap', time: '2 hours ago' },
+    { id: 2, type: 'info', message: 'Scheduled maintenance reminder for overhead tank', time: '5 hours ago' },
+  ];
+
+  return (
+    <div className="dashboard">
+      {/* Header */}
+      <div className="dashboard-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Welcome back, {user?.name?.split(' ')[0] || 'User'}! Here's your water quality overview.</p>
+        </div>
+        <button 
+          className={`btn btn-secondary refresh-btn ${refreshing ? 'spinning' : ''}`}
+          onClick={handleRefresh}
+        >
+          <FiRefreshCw />
+          Refresh
+        </button>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="metrics-grid">
+        <MetricCard
+          title="pH Level"
+          value={data.ph}
+          unit=""
+          icon={FiDroplet}
+          trend={2.3}
+          status={getStatus('ph', data.ph)}
+          color="#8b5cf6"
+        />
+        <MetricCard
+          title="TDS"
+          value={data.tds}
+          unit="mg/L"
+          icon={FiActivity}
+          trend={-1.5}
+          status={getStatus('tds', data.tds)}
+          color="#0ea5e9"
+        />
+        <MetricCard
+          title="Turbidity"
+          value={data.turbidity}
+          unit="NTU"
+          icon={FiDroplet}
+          trend={0.8}
+          status={getStatus('turbidity', data.turbidity)}
+          color="#22c55e"
+        />
+        <MetricCard
+          title="Temperature"
+          value={data.temperature}
+          unit="°C"
+          icon={FiThermometer}
+          trend={1.2}
+          status="good"
+          color="#f59e0b"
+        />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="dashboard-content">
+        {/* Quality Score */}
+        <motion.div 
+          className="card quality-card"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <h3>Water Quality Score</h3>
+          <QualityGauge score={qualityScore} />
+          <p className="quality-description">
+            Your water quality is within safe drinking standards
+          </p>
+        </motion.div>
+
+        {/* Chart */}
+        <motion.div 
+          className="card chart-card"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <h3>24-Hour Trend</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={history}>
+              <defs>
+                <linearGradient id="colorQuality" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+              <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
+              <YAxis stroke="var(--text-muted)" fontSize={12} />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px'
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="quality"
+                stroke="#0ea5e9"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#colorQuality)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </motion.div>
+
+        {/* Alerts */}
+        <motion.div 
+          className="card alerts-card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h3>Recent Alerts</h3>
+          <div className="alerts-list">
+            {mockAlerts.map(alert => (
+              <div key={alert.id} className={`alert-item ${alert.type}`}>
+                <FiAlertCircle className="alert-icon" />
+                <div className="alert-content">
+                  <p>{alert.message}</p>
+                  <span className="alert-time">{alert.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Water Level */}
+        <motion.div 
+          className="card level-card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h3>Tank Water Level</h3>
+          <div className="tank-visual">
+            <div className="tank">
+              <motion.div 
+                className="water-fill"
+                initial={{ height: 0 }}
+                animate={{ height: `${data.waterLevel}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+              />
+              <div className="level-markers">
+                {[100, 75, 50, 25, 0].map(level => (
+                  <div key={level} className="marker">
+                    <span>{level}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="level-info">
+              <span className="level-value">{Math.round(data.waterLevel)}%</span>
+              <span className="level-label">Current Level</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

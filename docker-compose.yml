@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: aquaguard-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - MQTT_BROKER=${MQTT_BROKER:-broker.hivemq.com}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - FAST2SMS_API_KEY=${FAST2SMS_API_KEY}
+    volumes:
+      - ./backend/models:/app/models
+    restart: unless-stopped
+    networks:
+      - aquaguard-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: aquaguard-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - aquaguard-network
+
+networks:
+  aquaguard-network:
+    driver: bridge
+
+volumes:
+  backend-models:
