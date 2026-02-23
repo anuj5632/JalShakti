@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FiDroplet, FiActivity, FiThermometer, FiAlertCircle, 
-  FiTrendingUp, FiTrendingDown, FiRefreshCw, FiCpu, FiZap
+  FiTrendingUp, FiTrendingDown, FiRefreshCw, FiCpu, FiZap,
+  FiVolume2, FiVolumeX, FiBell
 } from 'react-icons/fi';
 import { 
   LineChart, Line, AreaChart, Area, XAxis, YAxis, 
@@ -11,6 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { dashboardAPI, alertsAPI } from '../services/api';
 import axios from 'axios';
+import alarmSound, { checkAndPlayAlarm } from '../utils/alarmSound';
 import './Dashboard.css';
 
 // Mock data generator
@@ -141,6 +143,32 @@ const Dashboard = () => {
   const [apiConnected, setApiConnected] = useState(false);
   const [predictions, setPredictions] = useState(null);
   const [loadingPredictions, setLoadingPredictions] = useState(false);
+  const [alarmEnabled, setAlarmEnabled] = useState(true);
+  const [currentAlarmStatus, setCurrentAlarmStatus] = useState('normal');
+  const lastAlarmTime = useRef(0);
+
+  // Check for critical values and play alarm
+  useEffect(() => {
+    if (!alarmEnabled) return;
+    
+    // Debounce: don't alarm more than once every 30 seconds
+    const now = Date.now();
+    if (now - lastAlarmTime.current < 30000) return;
+
+    const status = checkAndPlayAlarm(data);
+    setCurrentAlarmStatus(status);
+    
+    if (status !== 'normal') {
+      lastAlarmTime.current = now;
+    }
+  }, [data, alarmEnabled]);
+
+  const toggleAlarm = () => {
+    setAlarmEnabled(!alarmEnabled);
+    if (alarmEnabled) {
+      alarmSound.stop();
+    }
+  };
 
   // Fetch ML predictions
   const fetchPredictions = useCallback(async () => {
@@ -257,19 +285,43 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard">
+      {/* Critical Alert Banner */}
+      {currentAlarmStatus === 'critical' && (
+        <motion.div 
+          className="critical-alert-banner"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <FiBell className="alert-bell" />
+          <span>CRITICAL: Water quality parameters exceeded safe limits!</span>
+          <button onClick={() => setCurrentAlarmStatus('acknowledged')} className="dismiss-btn">
+            Acknowledge
+          </button>
+        </motion.div>
+      )}
+
       {/* Header */}
       <div className="dashboard-header">
         <div>
           <h1>Dashboard</h1>
           <p>Welcome back, {user?.name?.split(' ')[0] || 'User'}! Here's your water quality overview.</p>
         </div>
-        <button 
-          className={`btn btn-secondary refresh-btn ${refreshing ? 'spinning' : ''}`}
-          onClick={handleRefresh}
-        >
-          <FiRefreshCw />
-          Refresh
-        </button>
+        <div className="header-actions">
+          <button 
+            className={`btn btn-icon alarm-toggle ${alarmEnabled ? 'enabled' : 'disabled'}`}
+            onClick={toggleAlarm}
+            title={alarmEnabled ? 'Mute Alarms' : 'Enable Alarms'}
+          >
+            {alarmEnabled ? <FiVolume2 /> : <FiVolumeX />}
+          </button>
+          <button 
+            className={`btn btn-secondary refresh-btn ${refreshing ? 'spinning' : ''}`}
+            onClick={handleRefresh}
+          >
+            <FiRefreshCw />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Metrics Grid */}

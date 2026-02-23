@@ -2,11 +2,90 @@
   animation: fadeIn 0.3s ease;
 }
 
+/* Critical Alert Banner */
+.critical-alert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+  color: white;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  animation: pulse-alert 1s ease-in-out infinite;
+}
+
+.critical-alert-banner .alert-bell {
+  font-size: 20px;
+  animation: ring 0.5s ease-in-out infinite;
+}
+
+@keyframes ring {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(15deg); }
+  75% { transform: rotate(-15deg); }
+}
+
+@keyframes pulse-alert {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.dismiss-btn {
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dismiss-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--bg-tertiary);
+}
+
+.alarm-toggle.enabled {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.alarm-toggle.disabled {
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .dashboard-header h1 {
