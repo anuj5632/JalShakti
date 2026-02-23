@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "author": "AquaGuard Team",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_ph",
+      "top": 150,
+      "left": -100,
+      "attrs": { "value": "50" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_tds",
+      "top": 150,
+      "left": 20,
+      "attrs": { "value": "50" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_turbidity",
+      "top": 150,
+      "left": 140,
+      "attrs": { "value": "50" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_flow",
+      "top": 250,
+      "left": -100,
+      "attrs": { "value": "50" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_level",
+      "top": 250,
+      "left": 20,
+      "attrs": { "value": "50" }
+    },
+    {
+      "type": "wokwi-ntc-temperature-sensor",
+      "id": "temp",
+      "top": 250,
+      "left": 140,
+      "attrs": { "temperature": "25" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_power",
+      "top": -80,
+      "left": 50,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_wifi",
+      "top": -80,
+      "left": 90,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_alert",
+      "top": -80,
+      "left": 130,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_reset",
+      "top": -100,
+      "left": 200,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -50,
+      "left": 50,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": -50,
+      "left": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": -50,
+      "left": 130,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": -200,
+      "left": -50,
+      "attrs": { "pins": "i2c" }
+    }
+  ],
+  "connections": [
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["pot_ph:SIG", "esp:34", "orange", ["h0"]],
+    ["pot_ph:VCC", "esp:3V3", "red", ["h0"]],
+    ["pot_ph:GND", "esp:GND.1", "black", ["h0"]],
+
+    ["pot_tds:SIG", "esp:35", "orange", ["h0"]],
+    ["pot_tds:VCC", "esp:3V3", "red", ["h0"]],
+    ["pot_tds:GND", "esp:GND.1", "black", ["h0"]],
+
+    ["pot_turbidity:SIG", "esp:32", "orange", ["h0"]],
+    ["pot_turbidity:VCC", "esp:3V3", "red", ["h0"]],
+    ["pot_turbidity:GND", "esp:GND.1", "black", ["h0"]],
+
+    ["pot_flow:SIG", "esp:33", "orange", ["h0"]],
+    ["pot_flow:VCC", "esp:3V3", "red", ["h0"]],
+    ["pot_flow:GND", "esp:GND.1", "black", ["h0"]],
+
+    ["pot_level:SIG", "esp:25", "orange", ["h0"]],
+    ["pot_level:VCC", "esp:3V3", "red", ["h0"]],
+    ["pot_level:GND", "esp:GND.1", "black", ["h0"]],
+
+    ["temp:VCC", "esp:3V3", "red", ["h0"]],
+    ["temp:GND", "esp:GND.1", "black", ["h0"]],
+    ["temp:OUT", "esp:26", "purple", ["h0"]],
+
+    ["led_power:A", "r1:2", "green", ["h0"]],
+    ["r1:1", "esp:2", "green", ["h0"]],
+    ["led_power:C", "esp:GND.1", "black", ["h0"]],
+
+    ["led_wifi:A", "r2:2", "blue", ["h0"]],
+    ["r2:1", "esp:4", "blue", ["h0"]],
+    ["led_wifi:C", "esp:GND.1", "black", ["h0"]],
+
+    ["led_alert:A", "r3:2", "red", ["h0"]],
+    ["r3:1", "esp:15", "red", ["h0"]],
+    ["led_alert:C", "esp:GND.1", "black", ["h0"]],
+
+    ["btn_reset:1.l", "esp:13", "yellow", ["h0"]],
+    ["btn_reset:2.r", "esp:GND.1", "black", ["h0"]],
+
+    ["lcd:GND", "esp:GND.1", "black", ["h0"]],
+    ["lcd:VCC", "esp:5V", "red", ["h0"]],
+    ["lcd:SDA", "esp:21", "green", ["h0"]],
+    ["lcd:SCL", "esp:22", "blue", ["h0"]]
+  ],
+  "serialMonitor": {
+    "display": "auto",
+    "newline": "lf"
+  }
+}

@@ -1,0 +1,12 @@
+[wokwi]
+version = 1
+firmware = "../firmware/main.py"
+elf = ""
+
+[env]
+WIFI_SSID = "Wokwi-GUEST"
+WIFI_PASS = ""
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_PORT = "1883"
+USER_ID = "demo_user"
+SOURCE_ID = "tank_1"
